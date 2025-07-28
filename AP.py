@@ -4,8 +4,20 @@ import pandas as pd
 import plotly.express as px
 import pydeck as pdk
 import datetime
+import os
+from dotenv import load_dotenv
 
-AQICN_TOKEN = "774abaf823c71f1fea9228a928c51651040157de"  # AQICN API token
+# Load environment variables from .env file
+load_dotenv()
+
+# Get API token from environment variables
+AQICN_TOKEN = os.getenv("AQICN_API_TOKEN")
+
+# Check if API token is available
+if not AQICN_TOKEN:
+    st.error("❌ API token not found! Please set AQICN_API_TOKEN in your environment variables or .env file.")
+    st.info("💡 Create a .env file in your project directory with: AQICN_API_TOKEN=your_token_here")
+    st.stop()
 
 def extract_time_from_api(time_data):
     """Helper function to extract time consistently from API response"""
@@ -224,8 +236,9 @@ def main():
                 
                 # Enhanced data table
                 st.subheader("📋 Detailed Data Table")
-                # Add pollutant descriptions
-                pollutant_info = {
+                
+                # Define actual air pollutants vs environmental parameters
+                air_pollutants = {
                     "pm25": {"name": "PM2.5", "desc": "Fine Particulate Matter", "unit": "µg/m³"},
                     "pm10": {"name": "PM10", "desc": "Coarse Particulate Matter", "unit": "µg/m³"},
                     "o3": {"name": "O₃", "desc": "Ozone", "unit": "µg/m³"},
@@ -234,40 +247,121 @@ def main():
                     "co": {"name": "CO", "desc": "Carbon Monoxide", "unit": "mg/m³"}
                 }
                 
-                # Enhance dataframe with descriptions
+                environmental_params = {
+                    "h": {"name": "Humidity", "desc": "Relative Humidity", "unit": "%"},
+                    "p": {"name": "Pressure", "desc": "Atmospheric Pressure", "unit": "hPa"},
+                    "t": {"name": "Temperature", "desc": "Air Temperature", "unit": "°C"},
+                    "w": {"name": "Wind Speed", "desc": "Wind Speed", "unit": "m/s"},
+                    "wg": {"name": "Wind Gust", "desc": "Wind Gust Speed", "unit": "m/s"},
+                    "wd": {"name": "Wind Direction", "desc": "Wind Direction", "unit": "°"},
+                    "r": {"name": "Rain", "desc": "Rainfall", "unit": "mm"},
+                    "d": {"name": "Dew Point", "desc": "Dew Point Temperature", "unit": "°C"}
+                }
+                
+                # Combine all parameters for display
+                all_params = {**air_pollutants, **environmental_params}
+                
+                # Separate pollutants from environmental data
+                df_pollutants = df_city[df_city["parameter"].str.lower().isin(air_pollutants.keys())].copy()
+                df_environmental = df_city[df_city["parameter"].str.lower().isin(environmental_params.keys())].copy()
+                
+                # Update visualizations to show only air pollutants
+                if not df_pollutants.empty:
+                    st.subheader("🌬️ Air Pollutant Analysis")
+                    
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        # Bar chart with only pollutants
+                        fig = px.bar(
+                            df_pollutants, 
+                            x="parameter", 
+                            y="value",
+                            title=f"🏭 Air Pollutant Levels in {city.title()}",
+                            color="value",
+                            color_continuous_scale="RdYlGn_r",
+                            labels={"parameter": "Pollutant", "value": "Concentration"}
+                        )
+                        fig.update_layout(
+                            xaxis_title="Air Pollutant Type",
+                            yaxis_title="Concentration Level",
+                            showlegend=False
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+                    with col2:
+                        # Pie chart for pollutant distribution
+                        fig_pie = px.pie(
+                            df_pollutants, 
+                            values="value", 
+                            names="parameter",
+                            title="🥧 Pollutant Distribution"
+                        )
+                        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                        st.plotly_chart(fig_pie, use_container_width=True)
+                
+                # Environmental parameters chart
+                if not df_environmental.empty:
+                    st.subheader("🌤️ Environmental Conditions")
+                    fig_env = px.bar(
+                        df_environmental, 
+                        x="parameter", 
+                        y="value",
+                        title=f"🌡️ Environmental Parameters in {city.title()}",
+                        color="parameter",
+                        labels={"parameter": "Parameter", "value": "Value"}
+                    )
+                    fig_env.update_layout(
+                        xaxis_title="Environmental Parameter",
+                        yaxis_title="Value",
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_env, use_container_width=True)
+                
+                # Enhanced dataframe with proper categorization
                 df_enhanced = df_city.copy()
-                df_enhanced["Pollutant Name"] = df_enhanced["parameter"].map(
-                    lambda x: pollutant_info.get(x, {}).get("name", x.upper())
+                df_enhanced["Parameter Name"] = df_enhanced["parameter"].map(
+                    lambda x: all_params.get(x.lower(), {}).get("name", x.upper())
                 )
                 df_enhanced["Description"] = df_enhanced["parameter"].map(
-                    lambda x: pollutant_info.get(x, {}).get("desc", "Unknown")
+                    lambda x: all_params.get(x.lower(), {}).get("desc", "Environmental Parameter")
                 )
                 df_enhanced["Unit"] = df_enhanced["parameter"].map(
-                    lambda x: pollutant_info.get(x, {}).get("unit", "Unknown")
+                    lambda x: all_params.get(x.lower(), {}).get("unit", "units")
+                )
+                df_enhanced["Category"] = df_enhanced["parameter"].map(
+                    lambda x: "Air Pollutant" if x.lower() in air_pollutants else "Environmental"
                 )
                 
-                # Reorder columns
-                df_display = df_enhanced[["Pollutant Name", "Description", "value", "Unit", "time"]].rename(
-                    columns={"value": "Concentration", "time": "Timestamp"}
-                )
+                # Display tables by category
+                if not df_pollutants.empty:
+                    st.subheader("🏭 Air Pollutants")
+                    df_poll_display = df_enhanced[df_enhanced["Category"] == "Air Pollutant"][
+                        ["Parameter Name", "Description", "value", "Unit", "time"]
+                    ].rename(columns={"value": "Concentration", "time": "Timestamp"})
+                    st.dataframe(df_poll_display, use_container_width=True, hide_index=True)
                 
-                st.dataframe(
-                    df_display,
-                    use_container_width=True,
-                    hide_index=True
-                )
+                if not df_environmental.empty:
+                    st.subheader("🌤️ Environmental Parameters")
+                    df_env_display = df_enhanced[df_enhanced["Category"] == "Environmental"][
+                        ["Parameter Name", "Description", "value", "Unit", "time"]
+                    ].rename(columns={"value": "Value", "time": "Timestamp"})
+                    st.dataframe(df_env_display, use_container_width=True, hide_index=True)
                 
-                # Health recommendations
+                # Health recommendations based only on pollutants
                 st.subheader("💡 Health Recommendations")
-                max_value = df_city["value"].max()
-                if max_value <= 50:
-                    st.success("✅ Air quality is good. Enjoy outdoor activities!")
-                elif max_value <= 100:
-                    st.warning("⚠️ Moderate air quality. Sensitive individuals should limit outdoor exposure.")
-                elif max_value <= 150:
-                    st.error("🚨 Unhealthy for sensitive groups. Consider reducing outdoor activities.")
+                if not df_pollutants.empty:
+                    max_pollutant_value = df_pollutants["value"].max()
+                    if max_pollutant_value <= 50:
+                        st.success("✅ Air quality is good. Enjoy outdoor activities!")
+                    elif max_pollutant_value <= 100:
+                        st.warning("⚠️ Moderate air quality. Sensitive individuals should limit outdoor exposure.")
+                    elif max_pollutant_value <= 150:
+                        st.error("🚨 Unhealthy for sensitive groups. Consider reducing outdoor activities.")
+                    else:
+                        st.error("☠️ Unhealthy air quality. Avoid outdoor activities and consider wearing masks.")
                 else:
-                    st.error("☠️ Unhealthy air quality. Avoid outdoor activities and consider wearing masks.")
+                    st.info("No air pollutant data available for health assessment.")
                     
         else:
             # Welcome message with instructions
