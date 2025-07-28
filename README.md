@@ -12,28 +12,27 @@ A comprehensive web application built with Streamlit that provides real-time air
 
 ## Demo
 <img width="1348" height="659" alt="image" src="https://github.com/user-attachments/assets/d6232e4f-ddf2-490f-abed-094a83685563" />
-<img width="1270" height="612" alt="image" src="https://github.com/user-attachments/assets/56996db1-0adc-499c-a5fa-d28b3ed6cfae" />
-
-
+<img width="629" height="573" alt="image" src="https://github.com/user-attachments/assets/d4be3667-f83b-499b-854d-7e09f74be3bb" />
+<img width="658" height="442" alt="image" src="https://github.com/user-attachments/assets/ede3459c-686c-4cdb-9f4d-26d7ea81bca9" />
+<img width="587" height="389" alt="image" src="https://github.com/user-attachments/assets/2dac6eff-0b2d-4cff-80f3-3f1dae482a6e" />
+<img width="563" height="546" alt="image" src="https://github.com/user-attachments/assets/5b747983-e192-4bb0-8573-73b98b9e52fc" />
 
 ## 🛠️ Installation
 
 1. **Install dependencies**
-    streamlit>=1.28.0
-    requests>=2.31.0
-    pandas>=2.0.0
-    plotly>=5.15.0
-    pydeck>=0.8.0
+        streamlit
+        requests
+        pandas
+        plotly
+        pydeck
+        python-dotenv
 
 
 3. **Get AQICN API Token**
    - Visit [AQICN Token Request](https://aqicn.org/data-platform/token/)
-   - Replace the token in `AP.py` with your token
 
 4. **Run the application**
-   ```bash
-   streamlit run AP.py
-   ```
+
 
 ## 📋 Usage
 
