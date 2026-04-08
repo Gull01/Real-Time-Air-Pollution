@@ -1,17 +1,17 @@
-# 🌍 Real-Time Air Pollution Monitor
+# Real-Time Air Pollution Monitor
 
-## 🚀 Overview
+## Overview
 Streamlit web application providing real-time global air quality data visualization using the AQICN API.
 
-## ✨ Key Features
+## Key Features
 - **Live Data Access**: Pulls real-time air quality index (AQI) data.
 - **Interactive Dashboards**: Powered by Streamlit for instant feedback.
 - **Global Scope**: Visualizes air health factors globally.
 
-## 🛠️ Built With
+## Built With
 - **Tech Stack:** Streamlit, Python, AQICN API
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 Ensure your local environment is configured securely (e.g. Python 3.8+ or necessary GIS software context).
@@ -27,7 +27,7 @@ Ensure your local environment is configured securely (e.g. Python 3.8+ or necess
    ```
 3. Set up your environment and dependencies as needed.
 
-## 📄 License
+## License
 This project is licensed under the MIT License - see below for details.
 
 ```text
