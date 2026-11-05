@@ -7,7 +7,7 @@ import math
 import plotly.graph_objects as go
 import streamlit as st
 
-from .aqi import BANDS, POLLUTANTS, band_for, compass, is_num, who_color
+from .aqi import BANDS, POLLUTANTS, actions_for, band_for, compass, is_num, who_color
 
 CSS = """
 <style>
@@ -66,7 +66,9 @@ CSS = """
 .grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:.75rem; margin:1rem 0 .4rem;}
 .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem 1rem;
   border-top:3px solid var(--band);}
-.card .k{display:flex; justify-content:space-between; align-items:baseline; color:var(--muted); font-size:.78rem;}
+.card .k{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:0 .4rem;
+  color:var(--muted); font-size:.78rem;}
+.card .k b{white-space:nowrap;}
 .card .k b{color:var(--text); font-family:var(--display); font-size:1rem;}
 .card .v{font-family:var(--display); font-size:1.75rem; font-weight:600; margin-top:.35rem; line-height:1.1;}
 .card .v small{font-size:.75rem; color:var(--muted); font-weight:500; margin-left:.25rem;}
@@ -76,6 +78,13 @@ CSS = """
 .who b{color:var(--text); font-weight:600;}
 .bar{height:4px; background:var(--line); border-radius:4px; margin-top:.35rem; overflow:hidden;}
 .bar div{height:100%;}
+
+/* what to do */
+.acts{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:.6rem;}
+.act{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:12px;
+  padding:.7rem .9rem;}
+.act span{display:block; font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.07em;}
+.act b{font-family:var(--display); font-size:1.08rem; color:var(--c); font-weight:600;}
 
 /* outlook */
 .outlook{display:grid; grid-template-columns:repeat(auto-fit, minmax(92px, 1fr)); gap:.55rem;}
@@ -123,7 +132,7 @@ def topbar(updated: str) -> None:
     st.markdown(
         f"""<div class="topbar">
   <div><div class="brand">Real-Time <span>Air Pollution</span> Monitor</div>
-  <div class="tagline">Ground stations, open sensor networks and the CAMS atmospheric model in one place.</div></div>
+  <div class="tagline">See how clean the air is anywhere in the world, right now and for the next few days.</div></div>
   <div class="livepill"><i></i>Live · {esc(updated)}</div>
 </div>""", unsafe_allow_html=True)
 
@@ -147,7 +156,7 @@ def _scale_html(aqi) -> str:
 def hero(name: str, sub: str, aqi, source_line: str, second_line: str, dominant: str = "") -> None:
     b = band_for(aqi)
     num = int(round(aqi)) if is_num(aqi) else "--"
-    dom = f" Main pollutant: <b>{esc(dominant)}</b>." if dominant else ""
+    dom = f" Main cause: <b>{esc(dominant)}</b>." if dominant else ""
     st.markdown(f"""
 <div class="hero" style="--band:{b.color}; --ink:{b.ink}">
   <div>
@@ -159,8 +168,8 @@ def hero(name: str, sub: str, aqi, source_line: str, second_line: str, dominant:
     {_scale_html(aqi)}
   </div>
   <div>
-    <div class="dial"><div class="lbl">US AQI</div><div class="num">{num}</div><div class="cat">{esc(b.label)}</div></div>
-    <div class="second">{second_line}</div>
+    <div class="dial"><div class="lbl">Air Quality Index</div><div class="num">{num}</div><div class="cat">{esc(b.label)}</div></div>
+    <div class="second">0 to 50 is good. The higher, the worse.</div><div class="second">{second_line}</div>
   </div>
 </div>""", unsafe_allow_html=True)
 
@@ -170,8 +179,7 @@ def pollutant_cards(current: dict, station_iaqi: dict) -> None:
     for key, meta in POLLUTANTS.items():
         conc = current.get(key)
         sub = current.get(meta["aqi_key"])
-        st_sub = station_iaqi.get(meta["waqi"])
-        b = band_for(sub if is_num(sub) else st_sub)
+        b = band_for(sub if is_num(sub) else station_iaqi.get(meta["waqi"]))
         if is_num(conc):
             val = f"{conc:,.0f}" if conc >= 100 else f"{conc:,.1f}"
         else:
@@ -180,16 +188,25 @@ def pollutant_cards(current: dict, station_iaqi: dict) -> None:
         if is_num(conc) and meta.get("who"):
             r = conc / meta["who"]
             w = min(r, 3) / 3 * 100
-            ratio_html = (f'<div class="who"><b>{r:.1f}×</b> WHO guideline</div>'
+            txt = "Within the safe limit" if r <= 1 else f"<b>{r:.1f}×</b> the safe limit"
+            ratio_html = (f'<div class="who">{txt}</div>'
                           f'<div class="bar"><div style="width:{w:.0f}%; background:{who_color(conc, meta["who"])}"></div></div>')
         chip = f'<span class="chip">{esc(b.label)}</span>' if b.lo >= 0 else ""
-        stn = (f'<div class="who">Station sub-index <b>{int(st_sub)}</b></div>' if is_num(st_sub) else "")
         cards.append(f"""<div class="card" style="--band:{b.color}; --ink:{b.ink}" title="{esc(meta['about'])}">
-  <div class="k"><b>{esc(meta['label'])}</b><span>{esc(meta['name'])}</span></div>
+  <div class="k"><b>{esc(meta['plain'])}</b><span>{esc(meta['label'])}</span></div>
   <div class="v">{val}<small>{esc(meta['unit'])}</small></div>
-  {chip}{ratio_html}{stn}
+  {chip}{ratio_html}
 </div>""")
     st.markdown(f'<div class="grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def actions(aqi) -> None:
+    rows = actions_for(aqi)
+    if not rows:
+        return
+    tiles = "".join(f'<div class="act" style="--c:{c}"><span>{esc(t)}</span><b>{esc(v)}</b></div>'
+                    for t, v, c in rows)
+    st.markdown(f'<div class="acts">{tiles}</div>', unsafe_allow_html=True)
 
 
 def outlook(days: list[dict]) -> None:

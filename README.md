@@ -5,11 +5,11 @@ A Streamlit dashboard for live air quality anywhere on Earth. It combines offici
 ## What it does
 
 * **Search anything.** Type a city, town, village, monitoring station or raw coordinates (`31.52, 74.35`). Place search covers the whole world, and station search hits the WAQI network directly.
-* **Now.** Headline US AQI with health advice, a measured or modelled source label, pollutant cards (PM2.5, PM10, NO₂, O₃, SO₂, CO) compared against WHO 2021 guidelines, a 5 day outlook and current weather.
+* **Right now.** The Air Quality Index in plain words, a simple "what to do today" row (exercise, windows, mask, kids), and pollutant cards (PM2.5, PM10, NO₂, O₃, SO₂, CO) compared against WHO 2021 guidelines, a 5 day outlook and current weather.
 * **Map.** Ground stations coloured by AQI category on a dark basemap, plus a CAMS model grid that fills the gaps between stations. Switch between the area around your location and the whole world, and click any station to open it.
-* **Trends and forecast.** Up to 30 days of hourly history and a 5 day forecast for any pollutant, daily averages against the WHO line, an hour by day heatmap that shows the daily rhythm, and the WAQI station forecast. Everything downloads as CSV.
-* **Nearby stations.** All WAQI stations within about 100 km sorted by distance, plus OpenAQ monitors within 25 km if you add a key.
-* **Compare.** Put up to 8 cities side by side on one chart, ranked by current levels, with hours spent above the WHO guideline.
+* **Past and forecast.** Up to 30 days of hourly history and a 5 day forecast for any pollutant, daily averages against the WHO line, an hour by day heatmap that shows the daily rhythm, and the WAQI station forecast. Everything downloads as CSV.
+* **Nearby monitors.** All WAQI stations within about 100 km sorted by distance, plus OpenAQ monitors within 25 km if you add a key.
+* **Compare cities.** Put up to 8 cities side by side on one chart, ranked by current levels, with hours spent above the WHO guideline.
 
 ## Data sources
 

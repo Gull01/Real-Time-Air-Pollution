@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from airmon import sources as src
 from airmon import ui
 from airmon.aqi import (BANDS, EXTRA_VARS, POLLUTANTS, WAQI_TO_KEY, band_for, haversine_km,
-                        is_num, rgba_for, who_color)
+                        is_num, pollutant_name, rgba_for, who_color)
 
 st.set_page_config(page_title="Real-Time Air Pollution Monitor", page_icon=":material/air:",
                    layout="wide", initial_sidebar_state="auto")
@@ -54,8 +54,10 @@ def quick_loc(name: str) -> dict:
     return dict(kind="place", name=name, label=f"{name}, {country}", lat=lat, lon=lon, uid=None)
 
 
-VAR_LABELS = {"us_aqi": "US AQI", **{k: v["label"] for k, v in POLLUTANTS.items()},
-              "dust": "Dust", "aerosol_optical_depth": "AOD", "uv_index": "UV index"}
+VAR_LABELS = {"us_aqi": "Air Quality Index (AQI)", **{k: pollutant_name(k) for k in POLLUTANTS},
+              "dust": "Desert dust", "uv_index": "UV index (sunburn risk)"}
+VAR_SHORT = {"us_aqi": "Overall AQI", **{k: v["plain"] for k, v in POLLUTANTS.items()},
+             "dust": "Desert dust", "uv_index": "UV"}
 
 
 # --------------------------------------------------------------------------- state + callbacks
@@ -116,7 +118,7 @@ def sidebar() -> int:
                     try:
                         results += src.waqi_search(WAQI_TOKEN, q)[:15]
                     except src.SourceError as e:
-                        errors.append(f"Station search unavailable ({e})")
+                        errors.append(f"Monitor search unavailable ({e})")
         st.session_state._results = results
 
         if results:
@@ -124,7 +126,7 @@ def sidebar() -> int:
                 r = results[i]
                 if r["kind"] == "station":
                     a = f"  ·  AQI {int(r['aqi'])}" if is_num(r.get("aqi")) else ""
-                    return f"Station: {r['label']}{a}"
+                    return f"Monitor: {r['label']}{a}"
                 if r["kind"] == "point":
                     return r["label"]
                 return f"Place: {r['label']}"
@@ -139,8 +141,8 @@ def sidebar() -> int:
 
         st.divider()
         st.markdown("#### Settings")
-        past_days = st.slider("History window (days)", 1, 30, 7, key="past_days",
-                              help="Hourly model history shown in Trends. The model keeps up to 92 days.")
+        past_days = st.slider("Past days to show", 1, 30, 7, key="past_days",
+                              help="How far back the charts on the Past & forecast tab go.")
         if st.button("Refresh live data", icon=":material/refresh:", width="stretch"):
             st.cache_data.clear()
             st.rerun()
@@ -148,16 +150,16 @@ def sidebar() -> int:
         st.divider()
         st.markdown("#### Data sources")
         ui.source_chips([
-            ("WAQI stations", bool(WAQI_TOKEN), "Real time ground station AQI from aqicn.org"),
-            ("CAMS model", True, "Open-Meteo air quality API, global, no key needed"),
-            ("Open-Meteo weather", True, "Wind, temperature and humidity"),
-            ("OpenAQ", bool(OPENAQ_KEY), "Open government and research sensor data"),
+            ("Air monitors (WAQI)", bool(WAQI_TOKEN), "Live readings from official air monitors, via aqicn.org"),
+            ("Satellite estimates (CAMS)", True, "Estimates for any place on Earth from satellite and weather data"),
+            ("Weather", True, "Wind, temperature and humidity from Open-Meteo"),
+            ("Extra sensors (OpenAQ)", bool(OPENAQ_KEY), "More government, research and low cost sensors"),
         ])
         if not WAQI_TOKEN:
-            st.markdown('<div class="note">Add <code>AQICN_API_TOKEN</code> to secrets to enable ground '
-                        'stations. Free token: aqicn.org/data-platform/token</div>', unsafe_allow_html=True)
+            st.markdown('<div class="note">Add <code>AQICN_API_TOKEN</code> to secrets to show live '
+                        'air monitors. Free token: aqicn.org/data-platform/token</div>', unsafe_allow_html=True)
         if not OPENAQ_KEY:
-            st.markdown('<div class="note">Optional: add <code>OPENAQ_API_KEY</code> for more stations. '
+            st.markdown('<div class="note">Optional: add <code>OPENAQ_API_KEY</code> for more sensors. '
                         'Free key: explore.openaq.org/register</div>', unsafe_allow_html=True)
     return past_days
 
@@ -169,7 +171,7 @@ def load_location(loc: dict, past_days: int) -> dict:
     try:
         out["model"] = src.model_air(loc["lat"], loc["lon"], past_days, 5)
     except src.SourceError as e:
-        out["errors"]["CAMS model"] = str(e)
+        out["errors"]["Satellite estimates"] = str(e)
     try:
         out["wx"] = src.weather_now(loc["lat"], loc["lon"])
     except src.SourceError as e:
@@ -197,7 +199,7 @@ def dominant_from_model(cur: dict) -> str:
     for k, meta in POLLUTANTS.items():
         v = cur.get(meta["aqi_key"])
         if is_num(v) and v > best:
-            best, label = v, meta["label"]
+            best, label = v, pollutant_name(k)
     return label
 
 
@@ -214,40 +216,45 @@ def tab_now(loc: dict, data: dict) -> None:
 
     if use_station:
         aqi = stn["aqi"]
-        eyebrow = "Measured · ground station"
-        dom = POLLUTANTS.get(WAQI_TO_KEY.get(stn["dominant"], ""), {}).get("label", stn["dominant"].upper())
+        eyebrow = "Measured by a nearby air monitor"
+        dkey = WAQI_TO_KEY.get(stn["dominant"], "")
+        dom = pollutant_name(dkey) if dkey else stn["dominant"].upper()
         when = pd.to_datetime(stn["time"], errors="coerce")
         when_s = when.strftime("%d %b, %H:%M") if not pd.isna(when) else "recently"
-        sub = f"{stn['name']}  ·  updated {when_s}"
+        sub = f"Monitor: {stn['name']}  ·  updated {when_s}"
         if loc.get("kind") != "station" and is_num(stn["km"]):
-            sub += f"  ·  {stn['km']:.0f} km from search point"
-        second = (f"CAMS model here: <b>{int(model_aqi)}</b>" if is_num(model_aqi) else "")
+            sub += f"  ·  {stn['km']:.0f} km away"
+        second = (f"Satellite estimate for the area: <b>{int(model_aqi)}</b>" if is_num(model_aqi) else "")
     else:
         aqi = model_aqi
-        eyebrow = "Modelled · CAMS atmospheric model"
+        eyebrow = "Estimated from satellite and weather data"
         dom = dominant_from_model(cur)
         t = cur.get("time", "")
         sub = f"{loc.get('label', loc['name'])}  ·  {loc['lat']:.3f}, {loc['lon']:.3f}"
         if t:
             sub += f"  ·  {pd.Timestamp(t).strftime('%d %b, %H:%M')} {model['tz_abbr'] if model else ''}"
         if stn and is_num(stn["aqi"]) and is_num(stn["km"]):
-            second = f"Nearest station {stn['km']:.0f} km away: <b>{int(stn['aqi'])}</b>"
+            second = f"Nearest air monitor ({stn['km']:.0f} km away): <b>{int(stn['aqi'])}</b>"
         elif WAQI_TOKEN:
-            second = "No ground station nearby"
+            second = "No air monitor nearby, so this is an estimate"
         else:
-            second = "Ground stations off (no token)"
+            second = "Live monitor data is switched off"
 
     ui.hero(loc["name"], sub, aqi, eyebrow, second, dom)
 
-    ui.section("Pollutants right now")
+    ui.section("What to do today")
+    ui.actions(aqi)
+
+    ui.section("What's in the air")
     ui.pollutant_cards(cur, stn["iaqi"] if (stn and use_station) else {})
-    st.markdown('<div class="note">Concentrations come from the CAMS model (hourly). Category colours use the '
-                'US EPA sub-index for each pollutant. Hover a card for what the pollutant is.</div>',
+    st.markdown('<div class="note">Each number is how much of that pollutant is in the air, in micrograms per cubic '
+                'metre (µg/m³). The bar compares it with the World Health Organization safe limit. '
+                'Hover over a card to see where it comes from.</div>',
                 unsafe_allow_html=True)
 
     left, right = st.columns([3, 2], gap="large")
     with left:
-        ui.section("5 day outlook (daily peak AQI)")
+        ui.section("Next 5 days (worst AQI each day)")
         if model and not model["hourly"].empty:
             h = model["hourly"]
             now = model_now(model)
@@ -273,7 +280,7 @@ def tab_now(loc: dict, data: dict) -> None:
 
     if stn and stn.get("attributions"):
         names = ", ".join(ui.esc(a["name"]) for a in stn["attributions"][:4] if a.get("name"))
-        st.markdown(f'<div class="note" style="margin-top:1.2rem">Station data: {names} via the World Air '
+        st.markdown(f'<div class="note" style="margin-top:1.2rem">Monitor data: {names} via the World Air '
                     f'Quality Index project.</div>', unsafe_allow_html=True)
 
 
@@ -287,7 +294,7 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
     h = model["hourly"]
     now = model_now(model)
 
-    var = st.segmented_control("Variable", list(VAR_LABELS), format_func=VAR_LABELS.get,
+    var = st.segmented_control("Show", list(VAR_SHORT), format_func=VAR_SHORT.get,
                                default="pm2_5", key="trend_var", required=True)
     meta = POLLUTANTS.get(var, {})
     unit = meta.get("unit") or EXTRA_VARS.get(var, {}).get("unit", "")
@@ -299,7 +306,7 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
             fig.add_hrect(y0=b.lo, y1=min(b.hi, 500), fillcolor=b.color, opacity=.07, line_width=0)
     past = h[h["time"] <= now]
     fut = h[h["time"] >= now]
-    fig.add_scatter(x=past["time"], y=past[var], name="Past (model analysis)", mode="lines",
+    fig.add_scatter(x=past["time"], y=past[var], name="Past days", mode="lines",
                     line=dict(color="#5EC8F2", width=2), fill="tozeroy", fillcolor="rgba(94,200,242,.08)")
     fig.add_scatter(x=fut["time"], y=fut[var], name="Forecast", mode="lines",
                     line=dict(color="#F2C94C", width=2, dash="dot"))
@@ -309,15 +316,15 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
                        font=dict(color="#8C9AB3", size=11))
     if who:
         fig.add_hline(y=who, line=dict(color="#EB5757", width=1, dash="dash"),
-                      annotation_text="WHO 24 h guideline" if var != "ozone" else "WHO 8 h guideline",
+                      annotation_text="Safe limit (WHO)",
                       annotation_font_color="#EB5757", annotation_position="top left")
     fig.update_yaxes(title=f"{VAR_LABELS[var]} {('(' + unit + ')') if unit else ''}")
-    ui.section(f"{VAR_LABELS[var]}: last {past_days} days and 5 day forecast")
+    ui.section(f"{VAR_LABELS[var]}: past {past_days} days and next 5 days")
     st.plotly_chart(ui.style_fig(fig, 380), width="stretch", config={"displaylogo": False})
 
     c1, c2 = st.columns(2, gap="large")
     with c1:
-        ui.section("Daily average")
+        ui.section("Average for each day")
         d = h.copy()
         d["date"] = d["time"].dt.normalize()
         cols = [var] + ([meta["aqi_key"]] if meta.get("aqi_key") else [])
@@ -337,10 +344,10 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
         st.plotly_chart(ui.style_fig(fig2, 300, legend=False), width="stretch", config={"displaylogo": False})
         if who and not past.empty:
             above = (past.set_index("time")[var].resample("D").mean() > who).sum()
-            st.markdown(f'<div class="note">{above} of the last {past["time"].dt.date.nunique()} days had a '
-                        f'daily average above the WHO guideline.</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="note">On {above} of the last {past["time"].dt.date.nunique()} days the '
+                        f'air was above the safe limit.</div>', unsafe_allow_html=True)
     with c2:
-        ui.section("Hour by day pattern")
+        ui.section("Which hours are worst")
         p = past.copy()
         if not p.empty:
             p["date"] = p["time"].dt.strftime("%a %d")
@@ -351,15 +358,15 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
                 z=piv.values, x=[f"{c:02d}" for c in piv.columns], y=piv.index,
                 colorscale=[[0, "#0F2A3D"], [.35, "#5EC8F2"], [.6, "#F2C94C"], [.8, "#F2994A"], [1, "#EB5757"]],
                 hovertemplate="%{y} %{x}:00<br>%{z:.1f}<extra></extra>", colorbar=dict(thickness=10)))
-            fig3.update_xaxes(title="Hour (local)")
+            fig3.update_xaxes(title="Hour of the day")
             st.plotly_chart(ui.style_fig(fig3, 300, legend=False), width="stretch",
                             config={"displaylogo": False})
-            st.markdown('<div class="note">Shows the daily rhythm: rush hours, night time inversions and '
-                        'afternoon ozone peaks stand out here.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="note">Each row is a day, each column an hour. Blue is cleaner, red is '
+                        'dirtier. Hours that turn red every day are the ones to avoid outside.</div>', unsafe_allow_html=True)
 
     stn = data["station"]
     if stn is not None and not stn["forecast"].empty:
-        ui.section(f"Station forecast from WAQI ({stn['name']})")
+        ui.section(f"Forecast from the nearby monitor ({stn['name']})")
         fc = stn["forecast"]
         fc = fc[fc["pollutant"].isin(["pm25", "pm10", "o3"])].copy()
         if not fc.empty:
@@ -368,11 +375,11 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
             palette = {"pm25": "#5EC8F2", "pm10": "#F2C94C", "o3": "#A66CFF"}
             for pol, g in fc.groupby("pollutant"):
                 fig4.add_scatter(
-                    x=g["day"], y=g["avg"], name=POLLUTANTS[WAQI_TO_KEY[pol]]["label"], mode="lines+markers",
+                    x=g["day"], y=g["avg"], name=pollutant_name(WAQI_TO_KEY[pol]), mode="lines+markers",
                     line=dict(color=palette.get(pol), width=2),
                     error_y=dict(type="data", symmetric=False, array=g["max"] - g["avg"],
                                  arrayminus=g["avg"] - g["min"], thickness=1, width=3))
-            fig4.update_yaxes(title="AQI (daily min, avg, max)")
+            fig4.update_yaxes(title="AQI (line: average, bar: low to high)")
             st.plotly_chart(ui.style_fig(fig4, 300), width="stretch", config={"displaylogo": False})
 
     st.download_button("Download hourly data (CSV)", h.to_csv(index=False).encode(),
@@ -389,13 +396,15 @@ def _bounds(lat: float, lon: float, span: float) -> tuple[float, float, float, f
 
 def tab_map(loc: dict) -> None:
     c1, c2, c3, c4 = st.columns([1.3, 1, 1, 1.4], vertical_alignment="bottom")
-    extent = c1.segmented_control("Extent", ["Around location", "Whole world"], default="Around location",
+    extent = c1.segmented_control("Show", ["Around this place", "Whole world"], default="Around this place",
                                   key="map_extent", required=True)
     world = extent == "Whole world"
-    show_st = c2.toggle("Ground stations", value=bool(WAQI_TOKEN), disabled=not WAQI_TOKEN, key="map_st")
-    show_model = c3.toggle("Model coverage", value=True, disabled=world, key="map_model",
-                           help="CAMS modelled AQI on a grid. Fills the gaps where there are no stations.")
-    span = c4.slider("Area (degrees around location)", 1.0, 12.0, 4.0, 0.5, disabled=world, key="map_span")
+    show_st = c2.toggle("Air monitors", value=bool(WAQI_TOKEN), disabled=not WAQI_TOKEN, key="map_st")
+    show_model = c3.toggle("Show estimates", value=True, disabled=world, key="map_model",
+                           help="Coloured squares show estimated air quality where there is no monitor.")
+    size = c4.select_slider("Map size", ["City", "Region", "Country", "Wide"], value="Region",
+                            disabled=world, key="map_size")
+    span = {"City": 1.0, "Region": 3.0, "Country": 6.0, "Wide": 10.0}[size]
 
     south, west, north, east = (-85.0, -180.0, 85.0, 180.0) if world else _bounds(loc["lat"], loc["lon"], span)
     layers = []
@@ -406,8 +415,8 @@ def tab_map(loc: dict) -> None:
             grid = src.model_grid(round(south, 2), round(west, 2), round(north, 2), round(east, 2), 14)
             if not grid.empty:
                 grid = grid.assign(
-                    name="CAMS model cell", aqi=grid["us_aqi"].round().astype(int),
-                    extra=grid["pm2_5"].map(lambda v: f"PM2.5 {v:.0f} µg/m³" if is_num(v) else ""),
+                    name="Estimate for this area", aqi=grid["us_aqi"].round().astype(int),
+                    extra=grid["pm2_5"].map(lambda v: f"Fine dust {v:.0f} µg/m³" if is_num(v) else ""),
                     fill=grid["us_aqi"].map(lambda v: rgba_for(v, 95)))
                 layers.append(pdk.Layer("PolygonLayer", id="model",
                                         data=grid[["polygon", "name", "aqi", "extra", "fill"]],
@@ -420,11 +429,11 @@ def tab_map(loc: dict) -> None:
         try:
             stations = src.waqi_bounds(WAQI_TOKEN, round(south, 2), round(west, 2), round(north, 2), round(east, 2))
         except src.SourceError as e:
-            st.caption(f"Station layer unavailable ({e}).")
+            st.caption(f"Monitor layer unavailable ({e}).")
         if not stations.empty:
             sd = stations.copy()
             sd["aqi"] = sd["aqi"].round().astype(int)
-            sd["extra"] = sd["updated"].fillna("").map(lambda t: f"Updated {str(t)[:16].replace('T', ' ')}" if t else "Ground station")
+            sd["extra"] = sd["updated"].fillna("").map(lambda t: f"Updated {str(t)[:16].replace('T', ' ')}" if t else "Air monitor")
             sd["fill"] = sd["aqi"].map(lambda v: rgba_for(v, 235))
             sd["uid"] = sd["uid"].astype(str)
             layers.append(pdk.Layer("ScatterplotLayer", id="stations",
@@ -446,7 +455,7 @@ def tab_map(loc: dict) -> None:
         initial_view_state=pdk.ViewState(latitude=20 if world else loc["lat"],
                                          longitude=0 if world else loc["lon"], zoom=zoom),
         layers=layers,
-        tooltip={"html": "<b>{name}</b><br/>US AQI <b>{aqi}</b><br/><span style='opacity:.75'>{extra}</span>",
+        tooltip={"html": "<b>{name}</b><br/>AQI <b>{aqi}</b><br/><span style='opacity:.75'>{extra}</span>",
                  "style": {"backgroundColor": "#16213A", "color": "#DCE5F2", "fontSize": "12px",
                            "border": "1px solid #22304A", "borderRadius": "8px"}},
     )
@@ -461,21 +470,21 @@ def tab_map(loc: dict) -> None:
     if picked:
         o = picked[0]
         a, b = st.columns([3, 1], vertical_alignment="center")
-        a.markdown(f"**{o['name']}**  ·  US AQI {o['aqi']}  ·  {band_for(o['aqi']).label}")
-        if b.button("Open this station", type="primary", width="stretch", icon=":material/arrow_forward:"):
+        a.markdown(f"**{o['name']}**  ·  AQI {o['aqi']}  ·  {band_for(o['aqi']).label}")
+        if b.button("Show this monitor", type="primary", width="stretch", icon=":material/arrow_forward:"):
             set_loc(dict(kind="station", uid=o["uid"], name=o["name"], label=o["name"],
                          lat=float(o["lat"]), lon=float(o["lon"])))
             st.rerun()
     else:
-        st.caption("Click a station dot to open it. Hover the coloured grid for modelled values between stations.")
+        st.caption("Click a dot to open that air monitor. The coloured squares are estimates for areas without a monitor.")
 
     if not stations.empty:
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Stations in view", f"{len(stations):,}", border=True)
-        m2.metric("Median AQI", f"{stations['aqi'].median():.0f}", border=True)
+        m1.metric("Monitors on map", f"{len(stations):,}", border=True)
+        m2.metric("Typical AQI", f"{stations['aqi'].median():.0f}", border=True)
         worst = stations.loc[stations["aqi"].idxmax()]
-        m3.metric("Highest", f"{worst['aqi']:.0f}", border=True, help=str(worst["name"]))
-        m4.metric("Above 100 (unhealthy for some)", f"{(stations['aqi'] > 100).mean() * 100:.0f}%", border=True)
+        m3.metric("Worst reading", f"{worst['aqi']:.0f}", border=True, help=str(worst["name"]))
+        m4.metric("Monitors above 100", f"{(stations['aqi'] > 100).mean() * 100:.0f}%", border=True)
 
 
 # --------------------------------------------------------------------------- tab: nearby
@@ -486,9 +495,9 @@ def _aqi_style(v):
 
 
 def tab_nearby(loc: dict) -> None:
-    ui.section("WAQI ground stations nearby")
+    ui.section("Official air monitors nearby")
     if not WAQI_TOKEN:
-        st.info("Add an `AQICN_API_TOKEN` secret to list ground stations. A free token takes a minute: "
+        st.info("Add an `AQICN_API_TOKEN` secret to list air monitors. A free token takes a minute: "
                 "https://aqicn.org/data-platform/token/")
     else:
         try:
@@ -498,20 +507,20 @@ def tab_nearby(loc: dict) -> None:
             df = pd.DataFrame()
             st.warning(f"Could not load stations ({err}).")
         if df.empty:
-            st.caption("No WAQI stations within about 100 km. The CAMS model values on the Now tab still apply.")
+            st.caption("No air monitors within about 100 km. The satellite estimate on the first tab still works here.")
         else:
             df["km"] = [haversine_km(loc["lat"], loc["lon"], a, b) for a, b in zip(df["lat"], df["lon"])]
             df = df.sort_values("km").head(30)
             show = pd.DataFrame({
-                "Station": df["name"], "Distance (km)": df["km"].round(1), "US AQI": df["aqi"].round(),
-                "Category": df["aqi"].map(lambda v: band_for(v).label),
+                "Monitor": df["name"], "Distance (km)": df["km"].round(1), "AQI": df["aqi"].round(),
+                "Air quality": df["aqi"].map(lambda v: band_for(v).label),
                 "Updated": df["updated"].fillna("").astype(str).str[:16].str.replace("T", " "),
             })
-            st.dataframe(show.style.map(_aqi_style, subset=["US AQI"]).format({"US AQI": "{:.0f}",
+            st.dataframe(show.style.map(_aqi_style, subset=["AQI"]).format({"AQI": "{:.0f}",
                                                                                 "Distance (km)": "{:.1f}"}),
                          hide_index=True, width="stretch", height=min(420, 38 + 35 * len(show)))
 
-    ui.section("OpenAQ sensors within 25 km")
+    ui.section("More sensors within 25 km (OpenAQ)")
     if not OPENAQ_KEY:
         st.info("OpenAQ adds thousands of government and research monitors (and many low cost sensors) that "
                 "WAQI does not carry. Add a free `OPENAQ_API_KEY` secret to switch it on: "
@@ -537,7 +546,7 @@ def tab_nearby(loc: dict) -> None:
     piv = oq.pivot_table(index=["station", "provider", "km"], columns="col", values="value", aggfunc="last")
     age = oq.groupby(["station", "provider", "km"])["age_h"].min().rename("Last reading (h ago)")
     tbl = piv.join(age).reset_index().sort_values("km")
-    tbl = tbl.rename(columns={"station": "Station", "provider": "Provider", "km": "Distance (km)"})
+    tbl = tbl.rename(columns={"station": "Sensor", "provider": "Run by", "km": "Distance (km)"})
     st.dataframe(tbl.round(1), hide_index=True, width="stretch")
     st.caption("Raw concentrations as reported by each provider. Data via OpenAQ (openaq.org).")
 
@@ -552,9 +561,9 @@ def tab_compare(loc: dict) -> None:
     cities = st.multiselect("Cities (type any city to add it)", opts, default=default, accept_new_options=True,
                             max_selections=8, key="cmp_cities")
     c2, c3 = st.columns([3, 1], vertical_alignment="bottom")
-    var = c2.segmented_control("Variable", ["pm2_5", "us_aqi", "pm10", "nitrogen_dioxide", "ozone"],
-                               format_func=VAR_LABELS.get, default="pm2_5", key="cmp_var", required=True)
-    days = c3.number_input("Days back", 1, 30, 7, key="cmp_days")
+    var = c2.segmented_control("Show", ["pm2_5", "us_aqi", "pm10", "nitrogen_dioxide", "ozone"],
+                               format_func=VAR_SHORT.get, default="pm2_5", key="cmp_var", required=True)
+    days = c3.number_input("Past days", 1, 30, 7, key="cmp_days")
     if not cities:
         st.info("Pick at least one city.")
         return
@@ -596,15 +605,15 @@ def tab_compare(loc: dict) -> None:
                         line=dict(color=palette[i % len(palette)], width=2))
         past = f[f["time"] <= now]
         cur_v = past[var].dropna().iloc[-1] if not past[var].dropna().empty else float("nan")
-        rows.append({"City": name, "Now": cur_v, "Average": past[var].mean(), "Peak": past[var].max(),
-                     **({"Hours above WHO": int((past[var] > who).sum())} if who else {})})
+        rows.append({"City": name, "Now": cur_v, "Average": past[var].mean(), "Worst": past[var].max(),
+                     **({"Hours above safe limit": int((past[var] > who).sum())} if who else {})})
     fig.add_shape(type="line", x0=now, x1=now, yref="paper", y0=0, y1=1,
                   line=dict(color="#8C9AB3", width=1, dash="dash"))
     if who:
         fig.add_hline(y=who, line=dict(color="#EB5757", width=1, dash="dash"),
-                      annotation_text="WHO guideline", annotation_font_color="#EB5757")
+                      annotation_text="Safe limit (WHO)", annotation_font_color="#EB5757")
     fig.update_xaxes(title="Time (UTC)")
-    ui.section(f"{VAR_LABELS[var]} over the last {days} days plus 2 day forecast")
+    ui.section(f"{VAR_LABELS[var]}: past {days} days and next 2 days")
     st.plotly_chart(ui.style_fig(fig, 400), width="stretch", config={"displaylogo": False})
 
     if rows:
@@ -612,7 +621,7 @@ def tab_compare(loc: dict) -> None:
         colors = [band_for(v).color if var == "us_aqi" else who_color(v, who) for v in t["Now"]]
         c1, c2 = st.columns([1, 1], gap="large")
         with c1:
-            ui.section("Ranking right now")
+            ui.section("Worst air right now")
             fig2 = go.Figure(go.Bar(x=t["Now"], y=t["City"], orientation="h", marker_color=colors,
                                     text=t["Now"].round(0), textposition="outside",
                                     hovertemplate="%{y}: %{x:.1f}<extra></extra>"))
@@ -627,28 +636,44 @@ def tab_compare(loc: dict) -> None:
 
 def tab_about() -> None:
     st.markdown("""
-#### Where the numbers come from
-
-| Source | What it adds | Update rate | Key |
-|---|---|---|---|
-| **WAQI / AQICN** | 12,000+ official ground stations, real time US AQI, station search, daily forecast | Hourly | Free token |
-| **CAMS via Open-Meteo** | Copernicus atmospheric model for any point on Earth: PM2.5, PM10, NO₂, O₃, SO₂, CO, dust, AOD, UV. Up to 92 days of history and a 5 day forecast | Hourly (model runs twice a day) | None |
-| **Open-Meteo weather** | Wind, temperature, humidity and pressure, which drive how pollution builds up or clears | 15 min | None |
-| **Open-Meteo geocoding** | Search any city, town or village worldwide | Static | None |
-| **OpenAQ v3** (optional) | Open government, research and low cost sensor networks | Varies by provider | Free key |
-
-#### How to read it
-* **Measured vs modelled.** When a WAQI station lies within 40 km the headline shows the measured AQI. Otherwise
-  it falls back to the CAMS model, so every place on Earth gets a value. Models smooth out local hotspots, so a
-  busy road can be worse than the model suggests.
-* **AQI is not a concentration.** WAQI station values are US EPA AQI sub-indices (0 to 500), while the pollutant
-  cards show model concentrations in µg/m³.
-* **WHO guidelines** are the 2021 short term values: PM2.5 15, PM10 45, NO₂ 25, SO₂ 40 µg/m³ (24 h), O₃ 100 µg/m³
-  (8 h) and CO 4 mg/m³ (24 h).
+#### What is the Air Quality Index (AQI)?
+A single number from 0 to 500 that tells you how clean or polluted the air is. **Lower is better.**
+Anything up to 50 is good, and above 150 the air is bad for everyone. The colours below are used
+everywhere in this app.
 """)
     ui.legend()
     st.markdown("""
-#### Running it yourself
+#### Where do the numbers come from?
+* **Air monitors.** Official measuring stations run by governments and embassies, shared by the
+  World Air Quality Index project (aqicn.org). These are real measurements, updated every hour.
+* **Satellite estimates.** Europe's Copernicus service (CAMS) combines satellite pictures with weather
+  data to estimate the air everywhere on Earth, including places with no monitor. It also forecasts
+  the next 5 days.
+* **Weather.** Wind, temperature and humidity from Open-Meteo. Wind blows pollution away; still,
+  calm air lets it build up.
+* **Extra sensors (optional).** OpenAQ adds more government, research and low cost sensors.
+
+#### Measured or estimated?
+If an air monitor is within 40 km, the big number on the first tab is a real measurement.
+If not, it is a satellite estimate. Estimates are good for the general picture but can miss a busy
+road or a local fire, so a nearby monitor is always more accurate.
+
+#### What is the "safe limit"?
+The World Health Organization's recommended maximum for each pollutant over a day. Being above it
+now and then is common in big cities; being far above it day after day is what harms health.
+
+#### What do PM2.5, PM10 and the others mean?
+| Short name | In plain words | Where it comes from |
+|---|---|---|
+| PM2.5 | Fine dust | Traffic, factories, burning crops or rubbish. The most harmful. |
+| PM10 | Dust | Roads, building sites, pollen |
+| NO₂ | Traffic fumes | Car and truck exhaust |
+| O₃ | Smog (ozone) | Sunlight reacting with pollution on hot days |
+| SO₂ | Factory smoke | Coal and oil burning, brick kilns |
+| CO | Carbon monoxide | Engines, generators, stoves |
+""")
+    with st.expander("For developers: running it yourself"):
+        st.markdown("""
 Put your keys in `.streamlit/secrets.toml` (or a `.env` file, or Streamlit Cloud secrets):
 
 ```toml
@@ -675,9 +700,9 @@ def main() -> None:
     for name, err in data["errors"].items():
         st.toast(f"{name}: {err}", icon=":material/warning:")
 
-    tabs = st.tabs([":material/air: Now", ":material/map: Map", ":material/monitoring: Trends & forecast",
-                    ":material/sensors: Nearby stations", ":material/compare_arrows: Compare",
-                    ":material/info: About the data"])
+    tabs = st.tabs([":material/air: Right now", ":material/map: Map", ":material/monitoring: Past & forecast",
+                    ":material/sensors: Nearby monitors", ":material/compare_arrows: Compare cities",
+                    ":material/info: How it works"])
     with tabs[0]:
         tab_now(loc, data)
     with tabs[1]:
