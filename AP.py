@@ -158,9 +158,6 @@ def sidebar() -> int:
         if not WAQI_TOKEN:
             st.markdown('<div class="note">Add <code>AQICN_API_TOKEN</code> to secrets to show live '
                         'air monitors. Free token: aqicn.org/data-platform/token</div>', unsafe_allow_html=True)
-        if not OPENAQ_KEY:
-            st.markdown('<div class="note">Optional: add <code>OPENAQ_API_KEY</code> for more sensors. '
-                        'Free key: explore.openaq.org/register</div>', unsafe_allow_html=True)
     return past_days
 
 
@@ -177,20 +174,33 @@ def load_location(loc: dict, past_days: int) -> dict:
     except src.SourceError as e:
         out["errors"]["Weather"] = str(e)
     if WAQI_TOKEN:
-        target = f"@{loc['uid']}" if loc.get("uid") else nearest_monitor(loc)
-        if target is None:
+        if loc.get("uid") not in (None, ""):
+            row = dict(uid=loc["uid"], name=loc["name"], lat=loc["lat"], lon=loc["lon"],
+                       aqi=loc.get("aqi", float("nan")), updated=loc.get("time"))
+        else:
+            row = nearest_monitor(loc)
+        if row is None:
             return out
+        # Full details (pollutants, forecast, credits) when WAQI has them for this monitor
         try:
-            s = src.waqi_feed(WAQI_TOKEN, target)
-            s["km"] = (haversine_km(loc["lat"], loc["lon"], s["lat"], s["lon"])
-                       if is_num(s["lat"]) else float("nan"))
-            out["station"] = s
-        except src.SourceError as e:
-            out["errors"]["WAQI"] = str(e)
+            s = src.waqi_feed(WAQI_TOKEN, f"@{int(float(row['uid']))}")
+        except (src.SourceError, ValueError, TypeError):
+            s = None
+        # Some networks (negative WAQI ids) have no detail page, and a lookup must not
+        # jump to a different station: fall back to the map reading for this monitor.
+        if (s is None or not is_num(s["aqi"]) or not is_num(s["lat"])
+                or haversine_km(s["lat"], s["lon"], float(row["lat"]), float(row["lon"])) > 5):
+            if not is_num(row.get("aqi")):
+                return out
+            s = dict(uid=row["uid"], aqi=float(row["aqi"]), dominant="", name=row["name"], url=None,
+                     lat=float(row["lat"]), lon=float(row["lon"]), time=row.get("updated"), iaqi={},
+                     forecast=pd.DataFrame(), attributions=[])
+        s["km"] = haversine_km(loc["lat"], loc["lon"], s["lat"], s["lon"])
+        out["station"] = s
     return out
 
 
-def nearest_monitor(loc: dict, max_km: float = 100) -> str | None:
+def nearest_monitor(loc: dict, max_km: float = 100) -> dict | None:
     """Find the closest WAQI monitor ourselves. WAQI's own geo lookup sometimes
     returns a station hundreds of km away (e.g. Delhi for Islamabad)."""
     s, w, n, e = _bounds(loc["lat"], loc["lon"], 1.0)
@@ -201,8 +211,8 @@ def nearest_monitor(loc: dict, max_km: float = 100) -> str | None:
     if df.empty:
         return None
     df = df.assign(km=[haversine_km(loc["lat"], loc["lon"], a, b) for a, b in zip(df["lat"], df["lon"])])
-    df = df[(df["km"] <= max_km) & (pd.to_numeric(df["uid"], errors="coerce") > 0)].sort_values("km")
-    return f"@{int(df.iloc[0]['uid'])}" if not df.empty else None
+    df = df[df["km"] <= max_km].sort_values("km")
+    return df.iloc[0].to_dict() if not df.empty else None
 
 
 def model_now(model: dict | None) -> pd.Timestamp:
@@ -235,7 +245,7 @@ def tab_now(loc: dict, data: dict) -> None:
         aqi = stn["aqi"]
         eyebrow = "Measured by a nearby air monitor"
         dkey = WAQI_TO_KEY.get(stn["dominant"], "")
-        dom = pollutant_name(dkey) if dkey else stn["dominant"].upper()
+        dom = pollutant_name(dkey) if dkey else (stn["dominant"].upper() or dominant_from_model(cur))
         when = pd.to_datetime(stn["time"], errors="coerce")
         when_s = when.strftime("%d %b, %H:%M") if not pd.isna(when) else "recently"
         sub = f"Monitor: {stn['name']}  ·  updated {when_s}"
@@ -493,7 +503,7 @@ def tab_map(loc: dict) -> None:
         a.markdown(f"**{o['name']}**  ·  AQI {o['aqi']}  ·  {band_for(o['aqi']).label}")
         if b.button("Show this monitor", type="primary", width="stretch", icon=":material/arrow_forward:"):
             set_loc(dict(kind="station", uid=o["uid"], name=o["name"], label=o["name"],
-                         lat=float(o["lat"]), lon=float(o["lon"])))
+                         lat=float(o["lat"]), lon=float(o["lon"]), aqi=float(o["aqi"])))
             st.rerun()
     else:
         st.caption("Click a dot to open that air monitor. The coloured squares are estimates for areas without a monitor.")
