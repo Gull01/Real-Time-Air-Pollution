@@ -44,6 +44,6 @@ echo Saved to .streamlit\secrets.toml
 
 :run
 echo.
-echo Starting the app at http://localhost:8501  (close this window to stop it)
-"%VPY%" -m streamlit run AP.py --server.headless false --server.port 8501
+echo Starting the app at http://localhost:8611  (close this window to stop it)
+"%VPY%" -m streamlit run AP.py --server.headless false --server.port 8611
 pause
