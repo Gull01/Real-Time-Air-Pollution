@@ -158,9 +158,6 @@ def sidebar() -> int:
         if not WAQI_TOKEN:
             st.markdown('<div class="note">Add <code>AQICN_API_TOKEN</code> to secrets to show live '
                         'air monitors. Free token: aqicn.org/data-platform/token</div>', unsafe_allow_html=True)
-        if not OPENAQ_KEY:
-            st.markdown('<div class="note">Optional: add <code>OPENAQ_API_KEY</code> for more sensors. '
-                        'Free key: explore.openaq.org/register</div>', unsafe_allow_html=True)
     return past_days
 
 
