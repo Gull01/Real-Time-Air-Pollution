@@ -31,7 +31,8 @@ CSS = """
 .livepill i{width:7px; height:7px; border-radius:50%; background:#3FBF6F;}
 
 /* hero */
-.hero{position:relative; overflow:hidden; display:grid; grid-template-columns:1fr auto; gap:1.5rem;
+.hero{position:relative; overflow:hidden; display:grid; grid-template-columns:minmax(0,1fr) minmax(170px,240px);
+  gap:1.5rem;
   background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--band);
   border-radius:8px; padding:1.5rem 1.7rem;}
 .eyebrow{font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600;}
