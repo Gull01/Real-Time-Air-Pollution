@@ -43,7 +43,11 @@ set /p "OAQ=OpenAQ key: "
 echo Saved to .streamlit\secrets.toml
 
 :run
+rem ---- pick the first free port from 8611 upward (8501 and others may be in use)
+set "PORT="
+for /f "usebackq delims=" %%p in (`"%VPY%" -c "import socket as S;c=lambda p:(lambda s:(s.settimeout(0.3),s.connect_ex(('127.0.0.1',p)))[1])(S.socket());print(next(p for p in range(8611,8700) if c(p)))"`) do set "PORT=%%p"
+if not defined PORT set "PORT=8611"
 echo.
-echo Starting the app at http://localhost:8611  (close this window to stop it)
-"%VPY%" -m streamlit run AP.py --server.headless false --server.port 8611
+echo Starting the app at http://localhost:!PORT!  (close this window to stop it)
+"%VPY%" -m streamlit run AP.py --server.headless false --server.port !PORT!
 pause
