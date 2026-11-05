@@ -33,6 +33,8 @@ cp .streamlit/secrets.toml.example .streamlit/secrets.toml   # then paste your k
 streamlit run AP.py
 ```
 
+On Windows you can instead double-click `run_local.bat`: it creates a virtual environment, installs the requirements, asks for your keys once and opens the app.
+
 A `.env` file with the same names (`AQICN_API_TOKEN`, `OPENAQ_API_KEY`) works too.
 
 ### Deploying on Streamlit Community Cloud
