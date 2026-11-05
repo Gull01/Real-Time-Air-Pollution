@@ -12,10 +12,10 @@ from .aqi import BANDS, POLLUTANTS, actions_for, band_for, compass, is_num, who_
 CSS = """
 <style>
 :root{
-  --bg:#0A1020; --panel:#121B2E; --panel-2:#16213A; --line:#22304A;
-  --text:#DCE5F2; --muted:#8C9AB3; --accent:#5EC8F2;
+  --bg:#0D1117; --panel:#161B22; --panel-2:#1C2128; --line:#30363D;
+  --text:#E6EDF3; --muted:#8B949E; --accent:#4493F8;
   --mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --display:'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --display:'Inter', system-ui, sans-serif;
 }
 .block-container{padding-top:2.2rem; padding-bottom:4rem; max-width:1320px;}
 [data-testid="stHeader"]{background:transparent;}
@@ -24,36 +24,30 @@ CSS = """
 .topbar{display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; flex-wrap:wrap;
   margin-bottom:1.1rem;}
 .brand{font-family:var(--display); font-weight:700; font-size:1.55rem; letter-spacing:-.01em; line-height:1.1;}
-.brand span{color:var(--accent);}
+.brand span{color:inherit;}
 .tagline{color:var(--muted); font-size:.9rem; margin-top:.25rem;}
 .livepill{display:inline-flex; align-items:center; gap:.45rem; font-size:.78rem; color:var(--muted);
-  border:1px solid var(--line); border-radius:999px; padding:.3rem .7rem; background:var(--panel);}
-.livepill i{width:8px; height:8px; border-radius:50%; background:#3FBF6F; box-shadow:0 0 0 0 rgba(63,191,111,.6);
-  animation:pulse 2s infinite;}
-@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,191,111,.55);}70%{box-shadow:0 0 0 8px rgba(63,191,111,0);}
-  100%{box-shadow:0 0 0 0 rgba(63,191,111,0);}}
+  border:1px solid var(--line); border-radius:6px; padding:.3rem .7rem; background:var(--panel);}
+.livepill i{width:7px; height:7px; border-radius:50%; background:#3FBF6F;}
 
 /* hero */
 .hero{position:relative; overflow:hidden; display:grid; grid-template-columns:1fr auto; gap:1.5rem;
-  background:linear-gradient(135deg, color-mix(in srgb, var(--band) 22%, var(--panel)) 0%, var(--panel) 55%);
-  border:1px solid color-mix(in srgb, var(--band) 35%, var(--line)); border-radius:18px; padding:1.6rem 1.8rem;}
-.hero:after{content:""; position:absolute; right:-80px; top:-80px; width:260px; height:260px; border-radius:50%;
-  background:radial-gradient(circle, color-mix(in srgb, var(--band) 35%, transparent), transparent 70%);
-  pointer-events:none;}
+  background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--band);
+  border-radius:8px; padding:1.5rem 1.7rem;}
 .eyebrow{font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:600;}
-.place{font-family:var(--display); font-size:2.3rem; font-weight:700; line-height:1.05; margin:.35rem 0 .3rem;
+.place{font-family:var(--display); font-size:2rem; font-weight:700; line-height:1.05; margin:.35rem 0 .3rem;
   letter-spacing:-.02em;}
 .sub{color:var(--muted); font-size:.88rem;}
 .verdict{margin-top:1rem; font-size:1.02rem; max-width:62ch;}
 .verdict b{color:var(--band);}
 .advice{margin-top:.45rem; color:var(--muted); font-size:.92rem; max-width:62ch;}
 .dial{position:relative; z-index:1; min-width:170px; text-align:center; align-self:center;
-  background:var(--band); color:var(--ink); border-radius:16px; padding:1rem 1.2rem .9rem;}
-.dial .num{font-family:var(--display); font-size:3.6rem; font-weight:700; line-height:1;}
+  background:var(--band); color:var(--ink); border-radius:6px; padding:1rem 1.2rem .9rem;}
+.dial .num{font-family:var(--display); font-size:3.3rem; font-variant-numeric:tabular-nums; font-weight:700; line-height:1;}
 .dial .lbl{font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; font-weight:700; opacity:.8;}
 .dial .cat{font-weight:600; font-size:.9rem; margin-top:.35rem;}
 .second{margin-top:.6rem; font-size:.8rem; color:var(--muted); text-align:center;}
-.scale{display:flex; height:8px; border-radius:6px; overflow:hidden; margin-top:1.2rem; position:relative;}
+.scale{display:flex; height:6px; border-radius:2px; overflow:hidden; margin-top:1.2rem; position:relative;}
 .scale div{flex:1;}
 .scale-wrap{position:relative; max-width:520px;}
 .marker{position:absolute; top:12px; width:2px; height:20px; background:var(--text);}
@@ -64,16 +58,16 @@ CSS = """
 
 /* pollutant cards */
 .grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:.75rem; margin:1rem 0 .4rem;}
-.card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:.9rem 1rem;
+.card{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:.9rem 1rem;
   border-top:3px solid var(--band);}
 .card .k{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:0 .4rem;
   color:var(--muted); font-size:.78rem;}
-.card .k b{white-space:nowrap;}
+
 .card .k b{color:var(--text); font-family:var(--display); font-size:1rem;}
 .card .v{font-family:var(--display); font-size:1.75rem; font-weight:600; margin-top:.35rem; line-height:1.1;}
 .card .v small{font-size:.75rem; color:var(--muted); font-weight:500; margin-left:.25rem;}
-.chip{display:inline-block; font-size:.7rem; font-weight:600; border-radius:999px; padding:.12rem .5rem;
-  background:var(--band); color:var(--ink); margin-top:.45rem;}
+.chip{display:inline-block; font-size:.7rem; font-weight:600; padding:.12rem .5rem;
+  background:var(--band); color:var(--ink); margin-top:.45rem; border-radius:4px;}
 .who{font-size:.74rem; color:var(--muted); margin-top:.45rem;}
 .who b{color:var(--text); font-weight:600;}
 .bar{height:4px; background:var(--line); border-radius:4px; margin-top:.35rem; overflow:hidden;}
@@ -81,14 +75,14 @@ CSS = """
 
 /* what to do */
 .acts{display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:.6rem;}
-.act{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:12px;
+.act{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:8px;
   padding:.7rem .9rem;}
 .act span{display:block; font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.07em;}
 .act b{font-family:var(--display); font-size:1.08rem; color:var(--c); font-weight:600;}
 
 /* outlook */
 .outlook{display:grid; grid-template-columns:repeat(auto-fit, minmax(92px, 1fr)); gap:.55rem;}
-.day{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:.7rem .6rem;
+.day{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:.7rem .6rem;
   text-align:center;}
 .day .d{font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em;}
 .day .n{font-family:var(--display); font-size:1.5rem; font-weight:700; color:var(--band); margin:.15rem 0;}
@@ -96,7 +90,7 @@ CSS = """
 
 /* weather */
 .wx{display:grid; grid-template-columns:repeat(2, 1fr); gap:.6rem;}
-.wx div{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:.7rem .85rem;}
+.wx div{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:.7rem .85rem;}
 .wx span{display:block; font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em;}
 .wx b{font-family:var(--display); font-size:1.25rem; font-weight:600;}
 .arrow{display:inline-block; margin-left:.35rem; color:var(--accent);}
@@ -106,7 +100,7 @@ CSS = """
 .legend i{display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:.35rem;
   vertical-align:-1px;}
 .src{display:inline-flex; align-items:center; gap:.4rem; font-size:.76rem; border:1px solid var(--line);
-  border-radius:999px; padding:.2rem .65rem; margin:.15rem .25rem .15rem 0; color:var(--muted);}
+  border-radius:6px; padding:.2rem .6rem; margin:.15rem .25rem .15rem 0; color:var(--muted);}
 .src i{width:7px; height:7px; border-radius:50%;}
 .note{font-size:.8rem; color:var(--muted);}
 .section{font-family:var(--display); font-weight:600; font-size:1.1rem; margin:1.4rem 0 .5rem;}
@@ -258,13 +252,13 @@ def style_fig(fig: go.Figure, height: int = 360, legend: bool = True) -> go.Figu
     fig.update_layout(
         height=height, margin=dict(l=10, r=10, t=30, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, system-ui, sans-serif", color="#C9D4E5", size=12),
-        hoverlabel=dict(bgcolor="#16213A", bordercolor="#22304A", font_color="#DCE5F2"),
+        font=dict(family="Inter, system-ui, sans-serif", color="#C9D1D9", size=12),
+        hoverlabel=dict(bgcolor="#1C2128", bordercolor="#30363D", font_color="#E6EDF3"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, bgcolor="rgba(0,0,0,0)") if legend else None,
         showlegend=legend,
     )
-    fig.update_xaxes(gridcolor="rgba(140,154,179,.12)", zeroline=False, linecolor="#22304A")
-    fig.update_yaxes(gridcolor="rgba(140,154,179,.12)", zeroline=False, linecolor="#22304A")
+    fig.update_xaxes(gridcolor="rgba(139,148,158,.15)", zeroline=False, linecolor="#30363D")
+    fig.update_yaxes(gridcolor="rgba(139,148,158,.15)", zeroline=False, linecolor="#30363D")
     return fig
 
 

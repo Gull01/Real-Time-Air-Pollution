@@ -78,7 +78,7 @@ def rgba_for(aqi, alpha: int = 200) -> list[int]:
 def who_color(value, who) -> str:
     """Colour a concentration by how many times it exceeds the WHO guideline."""
     if not (is_num(value) and who):
-        return "#5EC8F2"
+        return "#4493F8"
     r = float(value) / who
     for lim, idx in ((1, 0), (2, 1), (4, 2), (8, 3)):
         if r <= lim:
