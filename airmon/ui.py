@@ -12,8 +12,8 @@ from .aqi import BANDS, POLLUTANTS, actions_for, band_for, compass, is_num, who_
 CSS = """
 <style>
 :root{
-  --bg:#0D1117; --panel:#161B22; --panel-2:#1C2128; --line:#30363D;
-  --text:#E6EDF3; --muted:#8B949E; --accent:#4493F8;
+  --bg:#FFFFFF; --panel:#F1F4F8; --panel-2:#E8EDF3; --line:#D5DCE4;
+  --text:#1F2328; --muted:#5B6573; --accent:#0969DA;
   --mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --display:'Inter', system-ui, sans-serif;
 }
@@ -40,7 +40,7 @@ CSS = """
   letter-spacing:-.02em;}
 .sub{color:var(--muted); font-size:.88rem;}
 .verdict{margin-top:1rem; font-size:1.02rem; max-width:62ch;}
-.verdict b{color:var(--band);}
+.verdict b{color:color-mix(in srgb, var(--band) 72%, #000);}
 .advice{margin-top:.45rem; color:var(--muted); font-size:.92rem; max-width:62ch;}
 .dial{position:relative; z-index:1; min-width:170px; text-align:center; align-self:center;
   background:var(--band); color:var(--ink); border-radius:6px; padding:1rem 1.2rem .9rem;}
@@ -79,14 +79,14 @@ CSS = """
 .act{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--c); border-radius:8px;
   padding:.7rem .9rem;}
 .act span{display:block; font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.07em;}
-.act b{font-family:var(--display); font-size:1.08rem; color:var(--c); font-weight:600;}
+.act b{font-family:var(--display); font-size:1.08rem; color:color-mix(in srgb, var(--c) 72%, #000); font-weight:600;}
 
 /* outlook */
 .outlook{display:grid; grid-template-columns:repeat(auto-fit, minmax(92px, 1fr)); gap:.55rem;}
 .day{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:.7rem .6rem;
   text-align:center;}
 .day .d{font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.08em;}
-.day .n{font-family:var(--display); font-size:1.5rem; font-weight:700; color:var(--band); margin:.15rem 0;}
+.day .n{font-family:var(--display); font-size:1.5rem; font-weight:700; color:color-mix(in srgb, var(--band) 72%, #000); margin:.15rem 0;}
 .day .c{font-size:.7rem; color:var(--muted); line-height:1.2;}
 
 /* weather */
@@ -253,13 +253,13 @@ def style_fig(fig: go.Figure, height: int = 360, legend: bool = True) -> go.Figu
     fig.update_layout(
         height=height, margin=dict(l=10, r=10, t=30, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Inter, system-ui, sans-serif", color="#C9D1D9", size=12),
-        hoverlabel=dict(bgcolor="#1C2128", bordercolor="#30363D", font_color="#E6EDF3"),
+        font=dict(family="Inter, system-ui, sans-serif", color="#424A53", size=12),
+        hoverlabel=dict(bgcolor="#FFFFFF", bordercolor="#D5DCE4", font_color="#1F2328"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, bgcolor="rgba(0,0,0,0)") if legend else None,
         showlegend=legend,
     )
-    fig.update_xaxes(gridcolor="rgba(139,148,158,.15)", zeroline=False, linecolor="#30363D")
-    fig.update_yaxes(gridcolor="rgba(139,148,158,.15)", zeroline=False, linecolor="#30363D")
+    fig.update_xaxes(gridcolor="rgba(31,35,40,.09)", zeroline=False, linecolor="#D5DCE4")
+    fig.update_yaxes(gridcolor="rgba(31,35,40,.09)", zeroline=False, linecolor="#D5DCE4")
     return fig
 
 

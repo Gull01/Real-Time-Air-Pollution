@@ -337,13 +337,13 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
     past = h[h["time"] <= now]
     fut = h[h["time"] >= now]
     fig.add_scatter(x=past["time"], y=past[var], name="Past days", mode="lines",
-                    line=dict(color="#4493F8", width=2), fill="tozeroy", fillcolor="rgba(68,147,248,.10)")
+                    line=dict(color="#0969DA", width=2), fill="tozeroy", fillcolor="rgba(9,105,218,.09)")
     fig.add_scatter(x=fut["time"], y=fut[var], name="Forecast", mode="lines",
-                    line=dict(color="#F2C94C", width=2, dash="dot"))
+                    line=dict(color="#C99400", width=2, dash="dot"))
     fig.add_shape(type="line", x0=now, x1=now, yref="paper", y0=0, y1=1,
-                  line=dict(color="#8B949E", width=1, dash="dash"))
+                  line=dict(color="#5B6573", width=1, dash="dash"))
     fig.add_annotation(x=now, y=1, yref="paper", text="now", showarrow=False, yshift=8,
-                       font=dict(color="#8B949E", size=11))
+                       font=dict(color="#5B6573", size=11))
     if who:
         fig.add_hline(y=who, line=dict(color="#EB5757", width=1, dash="dash"),
                       annotation_text="Safe limit (WHO)",
@@ -364,11 +364,11 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
         elif meta.get("aqi_key"):
             colors = [band_for(v).color for v in daily[meta["aqi_key"]]]
         else:
-            colors = "#4493F8"
+            colors = "#0969DA"
         fig2 = go.Figure(go.Bar(x=daily["date"], y=daily[var], marker_color=colors,
                                 hovertemplate="%{x|%a %d %b}<br>%{y:.1f}<extra></extra>"))
         fig2.add_shape(type="line", x0=now.normalize(), x1=now.normalize(), yref="paper", y0=0, y1=1,
-                       line=dict(color="#8B949E", width=1, dash="dash"))
+                       line=dict(color="#5B6573", width=1, dash="dash"))
         if who:
             fig2.add_hline(y=who, line=dict(color="#EB5757", width=1, dash="dash"))
         st.plotly_chart(ui.style_fig(fig2, 300, legend=False), width="stretch", config={"displaylogo": False})
@@ -386,12 +386,12 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
             piv = p.pivot_table(index="date", columns="hour", values=var, aggfunc="mean").reindex(order)
             fig3 = go.Figure(go.Heatmap(
                 z=piv.values, x=[f"{c:02d}" for c in piv.columns], y=piv.index,
-                colorscale=[[0, "#0F2A3D"], [.35, "#4493F8"], [.6, "#F2C94C"], [.8, "#F2994A"], [1, "#EB5757"]],
+                colorscale=[[0, "#E8F5EC"], [.3, "#9ED9B0"], [.55, "#F2D16B"], [.78, "#F2994A"], [1, "#D64545"]],
                 hovertemplate="%{y} %{x}:00<br>%{z:.1f}<extra></extra>", colorbar=dict(thickness=10)))
             fig3.update_xaxes(title="Hour of the day")
             st.plotly_chart(ui.style_fig(fig3, 300, legend=False), width="stretch",
                             config={"displaylogo": False})
-            st.markdown('<div class="note">Each row is a day, each column an hour. Blue is cleaner, red is '
+            st.markdown('<div class="note">Each row is a day, each column an hour. Green is cleaner, red is '
                         'dirtier. Hours that turn red every day are the ones to avoid outside.</div>', unsafe_allow_html=True)
 
     stn = data["station"]
@@ -402,7 +402,7 @@ def tab_trends(loc: dict, data: dict, past_days: int) -> None:
         if not fc.empty:
             fc["day"] = pd.to_datetime(fc["day"])
             fig4 = go.Figure()
-            palette = {"pm25": "#4493F8", "pm10": "#F2C94C", "o3": "#A66CFF"}
+            palette = {"pm25": "#0969DA", "pm10": "#C99400", "o3": "#A66CFF"}
             for pol, g in fc.groupby("pollutant"):
                 fig4.add_scatter(
                     x=g["day"], y=g["avg"], name=pollutant_name(WAQI_TO_KEY[pol]), mode="lines+markers",
@@ -469,7 +469,7 @@ def tab_map(loc: dict) -> None:
             layers.append(pdk.Layer("ScatterplotLayer", id="stations",
                                     data=sd[["name", "lat", "lon", "aqi", "uid", "extra", "fill"]],
                                     get_position="[lon, lat]", get_fill_color="fill",
-                                    get_line_color=[13, 17, 23, 255], stroked=True, line_width_min_pixels=1,
+                                    get_line_color=[255, 255, 255, 255], stroked=True, line_width_min_pixels=1,
                                     get_radius=20_000 if world else 3_000,
                                     radius_min_pixels=3 if world else 5, radius_max_pixels=14,
                                     pickable=True, auto_highlight=True))
@@ -481,13 +481,13 @@ def tab_map(loc: dict) -> None:
 
     zoom = 1.2 if world else max(1.5, min(9.0, math.log2(360 / (span * 3)) + 0.4))
     deck = pdk.Deck(
-        map_style="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
         initial_view_state=pdk.ViewState(latitude=20 if world else loc["lat"],
                                          longitude=0 if world else loc["lon"], zoom=zoom),
         layers=layers,
         tooltip={"html": "<b>{name}</b><br/>AQI <b>{aqi}</b><br/><span style='opacity:.75'>{extra}</span>",
-                 "style": {"backgroundColor": "#1C2128", "color": "#E6EDF3", "fontSize": "12px",
-                           "border": "1px solid #30363D", "borderRadius": "8px"}},
+                 "style": {"backgroundColor": "#E8EDF3", "color": "#1F2328", "fontSize": "12px",
+                           "border": "1px solid #D5DCE4", "borderRadius": "8px"}},
     )
     event = st.pydeck_chart(deck, height=560, on_select="rerun", selection_mode="single-object", key="aq_map")
     ui.legend()
@@ -625,7 +625,7 @@ def tab_compare(loc: dict) -> None:
 
     now = pd.Timestamp.now(tz="UTC").tz_localize(None).floor("h")
     who = POLLUTANTS.get(var, {}).get("who")
-    palette = ["#4493F8", "#F2C94C", "#A66CFF", "#3FBF6F", "#F2994A", "#EB5757", "#9AA8BD", "#FF8FC7"]
+    palette = ["#0969DA", "#C99400", "#A66CFF", "#3FBF6F", "#F2994A", "#EB5757", "#9AA8BD", "#FF8FC7"]
     fig = go.Figure()
     rows = []
     for i, (name, f) in enumerate(zip(names, frames)):
@@ -638,7 +638,7 @@ def tab_compare(loc: dict) -> None:
         rows.append({"City": name, "Now": cur_v, "Average": past[var].mean(), "Worst": past[var].max(),
                      **({"Hours above safe limit": int((past[var] > who).sum())} if who else {})})
     fig.add_shape(type="line", x0=now, x1=now, yref="paper", y0=0, y1=1,
-                  line=dict(color="#8B949E", width=1, dash="dash"))
+                  line=dict(color="#5B6573", width=1, dash="dash"))
     if who:
         fig.add_hline(y=who, line=dict(color="#EB5757", width=1, dash="dash"),
                       annotation_text="Safe limit (WHO)", annotation_font_color="#EB5757")
